@@ -1,0 +1,10 @@
+openai>=1.60.0
+numpy
+scipy
+pandas
+openpyxl
+pypdf
+websockets
+pyyaml
+httpx
+
