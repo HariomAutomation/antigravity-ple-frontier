@@ -138,7 +138,7 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 ### Compute Budget Dynamics
 * **Token Scaling:** Sweeping reasoning effort under the single-pass baseline configuration (A0) across 1k–32k tokens yields a logarithmic fit ($R^2 = 0.94$):
   $$\text{Score}(T) \approx 0.112 + 0.058 \cdot \ln(T / 1000)$$
-  where marginal gain falls to $\sim 0.002$ per 1k tokens at 32k, confirming that unguided reasoning saturation cannot resolve systemic spatial clashes.
+  where marginal gain falls to $\sim 0.002$ per 1k tokens at 32k; observed spatial clash failures persisted within unguided token budgets without independent geometric verification.
 * **Verification ROI:** Reserving the final 25% of the time budget for verifier loops (each audit receiving ~6% of total budget and fixes taking half of remaining time) yields a $+0.034$ marginal score gain (0.364 $\to$ 0.398) at an incremental cost of $\$0.70$ per task ($0.049\text{ score/\$}$), whereas extending generative thinking yields diminishing returns ($\le 0.015\text{ score/\$}$), demonstrating a $> 3\times$ efficiency advantage for verification over raw generation.
 * **Remaining Headroom:** Analysis across best-of-family runs indicates ~0.15 of uncaptured dev-set objective score lies in specialized domain solver integrations.
 
