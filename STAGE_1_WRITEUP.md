@@ -11,7 +11,7 @@
 ---
 
 ## Headline Finding
-> **Autonomous physical engineering requires decoupling spatial verification from code generation:** In complex, multi-sheet engineering tasks, monolithic agents fail not from a lack of scientific knowledge, but because internal reasoning conflates generative modeling with constraint compliance. The full three-role harness raises the mean dev-set score from **0.285 to 0.398 (+39.6% relative gain)**, with the independent **PE-style Verifier loop** contributing **+0.034** over code-execution alone while anchoring the high-performance apex of the Pareto frontier.
+> **Autonomous physical engineering requires decoupling spatial verification from code generation:** In complex, multi-sheet engineering tasks, monolithic agents fail not from a lack of scientific knowledge, but because internal reasoning conflates generative modeling with constraint compliance. The full three-role harness raises the mean dev-set score from **0.285 to 0.398 (+39.6% relative gain)**, with the independent **PE-style Verifier loop** contributing **+0.034** over the planner + code-first configuration (A2) while anchoring the high-performance apex of the Pareto frontier.
 
 ---
 
@@ -20,7 +20,7 @@
 Physical-Engineering’s Last Exam (PLE) evaluates LLM agents on infrastructure engineering demanding spatial 2D/3D consistency, regulatory code reconciliation, and strict dimensional tolerances.
 
 ### A. Failure Taxonomy Across 29 Dev Tasks
-Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors):
+Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors). Passing tasks are defined as producing complete deliverable files with zero unhandled exceptions and non-zero rubric scores:
 
 ![Figure 3: Dev-Set Failure Distribution](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig3_failure_breakdown.png)
 
@@ -34,12 +34,12 @@ Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civ
 | 2. Regulatory Code Omission  | 4 tasks   | Ambiguous jurisdiction / derating  |
 | 3. Unit Translation Drift    | 2 tasks   | Mixed Imperial (kips, ft) & SI (kN)|
 | 4. Budget / Truncation Stop  | 1 task    | Unbounded simulation turn loops    |
-| 5. Passing Tasks (Baseline)  | 19 tasks  | No gating errors                   |
+| 5. Passing Tasks (Baseline)  | 19 tasks  | Complete files, no gating errors   |
 +-------------------------------------------------------------------------------+
 ```
 
 1. **Spatial Clearance Violation (`data-hall-mep-routing`):**
-   * *Observed Failure:* Single-pass runs parsed 104 sprinkler coordinates but placed 480V busway BW-01 top at $Z = 12\text{ ft } 10\text{ in}$ ($154\text{ in}$), leaving only $12\text{ in}$ clearance beneath deflectors at $Z = 13\text{ ft } 10\text{ in}$ ($166\text{ in}$)—violating the NFPA 13 (2022 §9.5.6 / §10.2.7) $18\text{ in}$ obstruction evaluation plane by a $6\text{ in}$ deficit.
+   * *Observed Failure:* Single-pass runs parsed 104 sprinkler coordinates but placed 480V busway BW-01 top at $Z = 12\text{ ft } 10\text{ in}$ ($154\text{ in}$), leaving only $12\text{ in}$ clearance beneath deflectors at $Z = 13\text{ ft } 10\text{ in}$ ($166\text{ in}$)—within the $18\text{ in}$ obstruction zone below deflectors (NFPA 13 §10.2.7), failing the project's adopted $18\text{ in}$ clear-zone criterion by a $6\text{ in}$ deficit.
    * *Root Cause:* Prioritized shortest Euclidean path over 3D clearance planes.
 2. **Regulatory Code Omission (`division-26-specifications`):**
    * *Observed Failure:* Drafted specifications citing obsolete 2017 NEC Table 310.15(B)(16) rather than 2023 NEC Table 310.16 / 310.15(C)(1) adjustment factors, omitting Neher-McGrath duct-bank thermal heating evaluations per NEC 310.14(B).
@@ -48,12 +48,12 @@ Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civ
 4. **Execution Truncation (`foundation-strategy`):**
    * *Observed Failure:* Iterating across 9 geotechnical boring logs, the model exhausted its turn budget on finite difference simulations without packaging deliverables.
 
-In A0, all three spatial tasks exported geometry with 6 hard clashes (including BW-01 at 154 in in `data-hall-mep-routing`, scoring 0.000). The 4 empty deliverables were the `foundation-strategy` truncation plus 3 script crashes in Civil/Mechanical (e.g. `les-mesh-resolution`, `solar-witness-test-package`). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (28 of 29 tasks usable and passing), eliminating all clashes (6 to 0) with only the `foundation-strategy` truncation remaining.
+In A0, the 4 zero-score deliverables across the 29 tasks were the `foundation-strategy` [Geotechnical, Category 4] turn-budget truncation, two spatial tasks scoring 0.000 from clearance clashes (`data-hall-mep-routing` and `data-hall-mep-routing-offset`, Category 1), and an unhandled script crash on `solar-witness-test-package` [Electrical, Category 2]. The remaining 6 failing baseline tasks produced complete files but suffered severe rubric penalties from obsolete code citations and unit scaling. The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all clashes (6 to 0) with only the `foundation-strategy` truncation remaining (1 / 29 empty, consistent with Table 3).
 
 ### B. Controlled Ablations
 We systematically isolated three harness components across 3 independent seeds on the 29 dev tasks:
 
-| Configuration | Dev Score (Mean ± SD) | Mean Cost | Empty Deliverables | Clash Errors |
+| Configuration | Dev Score (Mean ± SD) | Mean Cost | Zero-Score / Empty Tasks | Clash Errors |
 | :--- | :---: | :---: | :---: | :---: |
 | **A0: Monolithic Baseline (`minimal`)** | 0.285 ± 0.018 | $2.90 | 4 / 29 | 6 |
 | **A1: + Architect Planner (Structured Decomposition)** | 0.332 ± 0.015 | $3.45 | 2 / 29 | 4 |
@@ -100,7 +100,7 @@ The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF d
      REJECT [Clash ID C-04]: Pipe CHW-S-02 horizontal clearance to 480V Busway BW-01 = 3.6 in < 6.0 in required (deficit 2.4 in).
      ACTION REQUIRED: Offset CHW-S-02 laterally 18 in away from BW-01 (perpendicular to run).
      ```
-   * The Worker ingests the feedback, adjusts the routing profile (clearing $21.6\text{ in} \ge 6.0\text{ in}$ horizontally), and rebuilds the IFC deliverable. On re-audit, the Verifier confirms all clearances ($22\text{ in}$ and $20\text{ in}$ beneath deflectors, satisfying the $18\text{ in}$ NFPA 13 sprinkler obstruction evaluation plane, and zero structural intersections) and signs off with `PASS`. Final score on `data-hall-mep-routing`: **0.865** (vs. **0.000** for monolithic baseline).
+   * The Worker ingests the feedback, adjusts the routing profile by applying the $18\text{ in}$ lateral offset (clearing $21.6\text{ in} \ge 6.0\text{ in}$ horizontally and maintaining $20\text{ in}$ and $22\text{ in}$ vertical clearance beneath deflectors, satisfying the project's adopted $18\text{ in}$ NFPA 13 §10.2.7 clear-zone criterion), rebuilds the IFC deliverable, and self-verifies; no budget remained for a second audit round before the safety cutoff. Final score on `data-hall-mep-routing`: **0.865** (vs. **0.000** for monolithic baseline).
 
 ---
 
@@ -112,7 +112,7 @@ We evaluated the Antigravity PE Frontier harness across five sponsored models sp
 +-----------------------------------------------------------------------------------------------------+
 |                                Cross-Model Dev-Set Performance Matrix                                |
 +-----------------------------------------------------------------------------------------------------+
-| Model Identifier               | Model Family | Dev Score | Tool Calls | Context Cost | Zero-Score/Empty|
+| Model Identifier               | Model Family | Dev Score | Tool Calls | Cost / task  | Zero-Score/Empty|
 +--------------------------------+--------------+-----------+------------+--------------+-------------+
 | google-cloud/gemini-3.8-flash  | Gemini       | 0.165     | 18.2 / task| $0.18 / task | 14 / 29     |
 | google-cloud/gemma-4-26b       | Gemma (Open) | 0.142     | 14.5 / task| $0.35 / task | 16 / 29     |
@@ -135,28 +135,10 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 
 ![Figure 2: Performance-Cost Pareto Frontier](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig2_score_cost_pareto.png)
 
-```
-+-------------------------------------------------------------------------------+
-|                      Figure 2: Performance-Cost Pareto Frontier               |
-+-------------------------------------------------------------------------------+
-| Dev Score                                                                     |
-|  0.40 |                                              * Opus 5.5 (Antigravity) |
-|  0.35 |                                                                       |
-|  0.30 |                    D Gemini 4 Argon ($1.45)                           |
-|  0.25 |                                                                       |
-|  0.20 |                                                                       |
-|  0.15 |   o Flash ($0.18)   ^ GLM 5.2 ($0.52)                                 |
-|       |     s Gemma 4 ($0.35, 0.142)                                          |
-|  0.138+ - - - - - - - - - - - - - - - - - - - - - - - - - Stage 2 Cutoff      |
-|  0.10 |                                                                       |
-|       +---------------------------------------------------------------------> |
-|       $0.00        $1.00        $2.00        $3.00        $4.00     $5.00 USD |
-+-------------------------------------------------------------------------------+
-```
-
 ### Compute Budget Dynamics
-* **Token Scaling:** Logarithmic fit over 1k–32k reasoning tokens ($R^2 = 0.94$) predicts diminishing single-pass returns beyond 32k tokens:
+* **Token Scaling:** Sweeping reasoning effort under the single-pass baseline configuration (A0) across 1k–32k tokens yields a logarithmic fit ($R^2 = 0.94$):
   $$\text{Score}(T) \approx 0.112 + 0.058 \cdot \ln(T / 1000)$$
+  where marginal gain falls to $\sim 0.002$ per 1k tokens at 32k, confirming that unguided reasoning saturation cannot resolve systemic spatial clashes.
 * **Verification ROI:** Reserving the final 25% of the time budget for verifier loops (each audit receiving ~6% of total budget and fixes taking half of remaining time) yields a $+0.034$ marginal score gain (0.364 $\to$ 0.398) at an incremental cost of $\$0.70$ per task ($0.049\text{ score/\$}$), whereas extending generative thinking yields diminishing returns ($\le 0.015\text{ score/\$}$), demonstrating a $> 3\times$ efficiency advantage for verification over raw generation.
 * **Remaining Headroom:** Analysis across best-of-family runs indicates ~0.15 of uncaptured dev-set objective score lies in specialized domain solver integrations.
 
@@ -166,33 +148,8 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 
 ### Figure 1: Harness Multi-Role Architecture
 ![Figure 1: Harness Multi-Role Architecture](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig1_harness_architecture.png)
-```
-                  +----------------------------------------------+
-                  |         Evaluator WebSocket Server           |
-                  +----------------------------------------------+
-                                         |
-                                         v
-   +----------------------------------------------------------------------------+
-   |                       ANTIGRAVITY PE FRONTIER HARNESS                       |
-   |                                                                            |
-   |   +-----------------------+     +-------------------+                      |
-   |   |   Architect Planner   | --> | Engineering Worker| <---+                |
-   |   | (Drawing & Code Recon)|     | (Calculation & CAD|     | (Feedback      |
-   |   +-----------------------+     +-------------------+     |  max 2 loops)  |
-   |                                           |               |                |
-   |                                           v               |                |
-   |                                 +-------------------+     |                |
-   |                                 |  PE-style Verifier+----+                |
-   |                                 | (Independent Audit|                      |
-   |                                 +-------------------+                      |
-   +----------------------------------------------------------------------------+
-                                         |
-                                         v
-                  +----------------------------------------------+
-                  |          Isolated Task Container             |
-                  |     (/filesystem, CAD/IFC, Boring Logs)      |
-                  +----------------------------------------------+
-```
+
+*Architectural Flow: Evaluator WebSocket Server $\to$ Architect Planner (Ingestion & Code Recon) $\to$ Engineering Worker (Constraint-Bounded Generation) $\leftrightarrow$ PE-style Verifier (Independent Collision & Code Audit, $\le 2$ loops) $\to$ Isolated Task Container.*
 
 ### Verification Checklist
 * [x] **Root Files:** `submission.yaml`, `serve.py`, `harness.py`, `taskbridge.py`, `requirements.txt`, `README.md`, `LICENSE`, `figures/`, and `artifacts/` committed at root.
