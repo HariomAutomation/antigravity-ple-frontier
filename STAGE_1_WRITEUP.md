@@ -2,7 +2,7 @@
 
 **Kaggle Competition:** [Google - Agent Harness on Physical-Engineering's Last Exam](https://www.kaggle.com/competitions/physical-engineerings-last-exam)  
 **Project Repository:** [https://github.com/HariomAutomation/antigravity-ple-frontier](https://github.com/HariomAutomation/antigravity-ple-frontier)  
-**Submission Commit SHA:** `9f7ba65b5aa75da77c2ca1ad2efca33939e1223a`  
+**Submission Commit SHA:** `1c798f489a7c6fb998ad5ff81d23791b64f3c678`  
 **Primary Model API:** `google-cloud/claude-opus-5-5` (Google-Sponsored Model)  
 **License:** Apache-2.0  
 
@@ -91,14 +91,14 @@ The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF d
    * *Antigravity PE Frontier:* The **Architect Planner** scans the Sheet Index, Revision Block (confirming Rev 3 supersedes Rev 1), and Match Lines, computing explicit coordinate transformation matrices before authoring geometry.
 2. **Phase 2: Constraint-Bounded Generation:**
    * *Baseline Agent:* Uses unconstrained spline curves to route chilled-water piping, colliding with structural steel.
-   * *Antigravity PE Frontier:* The **Engineering Worker** constructs a spatial obstacle-clearance graph in Python using `ifcopenshell.geom.tree` bounding boxes. It places busway BW-01 top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$ (below the $148\text{ in}$ sprinkler obstruction plane). Structural framing, column envelopes, and sprinkler zones form rigid barriers, routing clash-free runs in under 30 seconds.
+   * *Antigravity PE Frontier:* The **Engineering Worker** constructs a spatial obstacle-clearance graph in Python using `ifcopenshell.geom.tree` bounding boxes. It places busway BW-01 top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$ (below the $148\text{ in}$ sprinkler obstruction plane). Structural framing, column envelopes, and sprinkler zones form rigid barriers, routing clash-free runs against hard obstacles in under 30 seconds.
 3. **Phase 3: The PE-style Verifier Audit:**
    * When the Worker finishes, the **PE Verifier** receives the task specification, the architect's work plan, and inspects exported deliverables on disk.
    * The Verifier executes automated collision queries via `ifcopenshell.geom.tree`.
    * Finding that chilled-water pipe CHW-S-02 (top of insulation at elevation $Z = 12\text{ ft } 2\text{ in} = 146\text{ in}$, running parallel to busway BW-01 with top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$) leaves only $3.6\text{ in}$ horizontal edge-to-edge clearance against 480V busway BW-01 ($6.0\text{ in}$ required by project MEP safety separation specifications [Spec §26 05 00], deficit $2.4\text{ in}$), the Verifier issues a structured correction notice:
      ```text
      REJECT [Clash ID C-04]: Pipe CHW-S-02 horizontal clearance to 480V Busway BW-01 = 3.6 in < 6.0 in required (deficit 2.4 in).
-     ACTION REQUIRED: Reroute CHW-S-02 laterally 18 in along Grid C.
+     ACTION REQUIRED: Offset CHW-S-02 laterally 18 in away from BW-01 (perpendicular to run).
      ```
    * The Worker ingests the feedback, adjusts the routing profile (clearing $21.6\text{ in} \ge 6.0\text{ in}$ horizontally), and rebuilds the IFC deliverable. On re-audit, the Verifier confirms all clearances ($22\text{ in}$ and $20\text{ in}$ beneath deflectors, satisfying the $18\text{ in}$ NFPA 13 sprinkler obstruction evaluation plane, and zero structural intersections) and signs off with `PASS`. Final score on `data-hall-mep-routing`: **0.865** (vs. **0.000** for monolithic baseline).
 
@@ -197,6 +197,6 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 ### Verification Checklist
 * [x] **Root Files:** `submission.yaml`, `serve.py`, `harness.py`, `taskbridge.py`, `requirements.txt`, `README.md`, `LICENSE`, `figures/`, and `artifacts/` committed at root.
 * [x] **Dev Artifacts Validated:** 28 of 29 dev tasks usable ($25.37\text{ MiB}$, 100 files, no symlinks/LFS).
-* [x] **Official Kit Verification:** Passes `python -m kit artifacts` (28 usable) and `kit check`.
+* [x] **Official Kit Verification:** Passes kit artifacts (28 of 29 dev tasks usable) and offline benchmark suite (31/31 passed).
 * [x] **Sponsored Model:** `google-cloud/claude-opus-5-5`.
 * [x] **Word Count:** Under 2,000-word ceiling.
