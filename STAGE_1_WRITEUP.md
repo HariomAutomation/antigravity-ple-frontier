@@ -6,7 +6,7 @@
 **Primary Model API:** `google-cloud/claude-opus-5-5` (Google-Sponsored Model)  
 **License:** Apache-2.0  
 
-![Antigravity PE Frontier Cover](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/e6bd09f09807b89eb595301897f9dc06f22d515e/figures/cover_image_ple_frontier.png)
+![Antigravity PE Frontier Cover](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/fbcc9306d77d5a2905827183b51e3abdc3ab17eb/figures/cover_image_ple_frontier.png)
 
 ---
 
