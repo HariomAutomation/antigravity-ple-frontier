@@ -365,7 +365,7 @@ async def solve(session: taskbridge.Session) -> str:
         summary = await agent(session, work, TOOLS, until(CHECK_SHARE), final=True)
     except Exception as work_err:
         await session.log(f"Worker phase exception ({work_err}); falling back to final message")
-        summary = session.final_message or ""
+        summary = getattr(session, "final_message", "") or ""
     await session.log(f"Worker initial deliverable summary: {len(summary)} chars")
 
     # Phase 3: Hostile PE Reviewer & Fix Rounds (guaranteeing re-audit window)
@@ -404,7 +404,7 @@ async def solve(session: taskbridge.Session) -> str:
     except Exception as audit_err:
         await session.log(f"PE Quality Audit warning: {audit_err}; preserving worker deliverables.")
 
-    return summary or session.final_message
+    return summary or getattr(session, "final_message", "") or ""
 
 
 if __name__ == "__main__":
