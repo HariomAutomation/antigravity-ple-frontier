@@ -235,6 +235,7 @@ def conversation(system: str, session: taskbridge.Session, prompt: str) -> list[
 
 
 async def agent(session: taskbridge.Session, messages: list[dict], tools: list[dict], until: float, final: bool = False) -> str:
+    global USE_CLAUDE_EXTRAS
     nudges, head, waits = 0, "", iter(RETRY_WAITS)
     while True:
         left = session.time_left()
@@ -252,11 +253,13 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
         elif tools:
             kwargs["tools"] = tools
 
-        if USE_CLAUDE_EXTRAS and "claude" in MODEL.lower():
-            kwargs["extra_body"] = {
-                "thinking": {"type": "adaptive"},
-                "output_config": {"effort": "high"},
-            }
+        if "claude" in MODEL.lower():
+            if USE_CLAUDE_EXTRAS:
+                kwargs["extra_body"] = {
+                    "thinking": {"type": "adaptive"},
+                    "output_config": {"effort": "high"},
+                }
+            # After fallback: send NO effort parameter for Claude
         elif "gemini" in MODEL.lower() or "gemma" in MODEL.lower():
             kwargs["reasoning_effort"] = "high"
         elif EFFORT in ("low", "medium", "high"):
@@ -268,7 +271,6 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
             res = await client.chat.completions.create(**kwargs, timeout=per_call)
             waits = iter(RETRY_WAITS)
         except openai.BadRequestError as exc:
-            global USE_CLAUDE_EXTRAS
             if USE_CLAUDE_EXTRAS and re.search(r"thinking|output_config|effort|signature|extra_body", str(exc), re.I):
                 USE_CLAUDE_EXTRAS = False
                 await session.log(f"Gateway rejected thinking parameters ({exc}); retrying call without extra_body")
