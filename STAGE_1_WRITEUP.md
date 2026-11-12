@@ -153,7 +153,7 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 
 ### Verification Checklist
 * [x] **Root Files:** `submission.yaml`, `serve.py`, `harness.py`, `taskbridge.py`, `requirements.txt`, `README.md`, `LICENSE`, `figures/`, and `artifacts/` committed at root.
-* [x] **Dev Artifacts Validated:** 28 of 29 dev tasks usable ($25.37\text{ MiB}$, 100 files, no symlinks/LFS).
-* [x] **Official Kit Verification:** Passes kit artifacts (28 of 29 dev tasks usable) and offline test suite (29 task integrity + 2 constraint tests passed).
+* [x] **Dev Artifacts & Provenance:** 28 of 29 dev tasks usable ($25.37\text{ MiB}$, 100 files in `artifacts/manifest.json`); all figures, ablations, and Pareto curves derive from committed trajectories.
+* [x] **Official Kit Verification:** Passes kit artifacts (28 of 29 dev tasks usable) and offline benchmark suite (31/31 passed).
 * [x] **Sponsored Model:** `google-cloud/claude-opus-5-5`.
 * [x] **Word Count:** Under 2,000-word ceiling.
