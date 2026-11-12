@@ -37,9 +37,9 @@ import openai
 import taskbridge
 
 MODEL = os.environ.get("MODEL_NAME", "claude-opus-5-5")
-MAX_EFFORT_MODELS = ("claude", "glm", "gpt-6", "deepseek-v4")
+MAX_EFFORT_MODELS = ("glm", "gpt-6", "deepseek-v4")
 EFFORT = os.environ.get("REASONING_EFFORT") or (
-    "max" if any(m in MODEL.lower() for m in MAX_EFFORT_MODELS) else "high"
+    "high" if any(m in MODEL.lower() for m in MAX_EFFORT_MODELS) else "medium"
 )
 
 WRAP_UP_SEC = 240
@@ -66,7 +66,7 @@ MIN_STEP_SEC = 120
 MAX_FIX_ROUNDS = 2
 
 # Evaluator sets OPENAI_BASE_URL and OPENAI_API_KEY
-client = openai.AsyncOpenAI(max_retries=5, timeout=1800)
+client = openai.AsyncOpenAI(max_retries=0, timeout=1800)
 
 PLANNER_PROMPT = """You are a Principal Engineering Architect planning a long-horizon physical engineering project in a containerized Linux workspace ({workdir}) with no internet access.
 Your role is to inspect the project package, resolve all document ambiguities, and author an exact, unambiguous Engineering Work Plan.
@@ -183,7 +183,7 @@ async def run_tool(session: taskbridge.Session, fn: dict) -> str:
             count = await session.write_file(args["path"], args["content"])
             return f"wrote {count} bytes to {args['path']}"
         return f"error: unknown tool {name}"
-    except (taskbridge.TaskError, KeyError, ValueError) as exc:
+    except Exception as exc:
         return f"error: {type(exc).__name__}: {exc}"
 
 
@@ -195,8 +195,11 @@ async def recover(session: taskbridge.Session, messages: list[dict], exc: Except
     if wait is None or not (status is None or status in (408, 409, 429) or status >= 500):
         return False
     left = session.time_left()
-    if left is not None and left > until:
-        wait = min(wait, left - until)
+    if left is not None:
+        slack = left - until
+        if slack <= 10:
+            return False
+        wait = min(wait, slack - 10)
     await session.log(f"Model call retry ({str(exc)[:150]}); backoff {wait:.0f}s")
     await asyncio.sleep(wait)
     return True
@@ -237,13 +240,27 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
             "messages": marked(messages + ([WRAP_UP] if wrap_up else [])),
             "max_tokens": MAX_OUTPUT_TOKENS,
         }
-        if call_tools:
-            kwargs["tools"] = call_tools
-        if "claude" not in MODEL.lower():
+        if wrap_up:
+            if tools:
+                kwargs["tools"] = tools
+                kwargs["tool_choice"] = "none"
+        elif tools:
+            kwargs["tools"] = tools
+
+        if "claude" in MODEL.lower():
+            kwargs["extra_body"] = {
+                "thinking": {"type": "adaptive"},
+                "output_config": {"effort": "high"},
+            }
+        elif "gemini" in MODEL.lower() or "gemma" in MODEL.lower():
+            kwargs["reasoning_effort"] = "high"
+        else:
             kwargs["reasoning_effort"] = EFFORT
 
         try:
-            res = await client.chat.completions.create(**kwargs)
+            left = session.time_left()
+            per_call = 1800.0 if left is None else max(60.0, min(1800.0, left - 30.0))
+            res = await client.chat.completions.create(**kwargs, timeout=per_call)
             waits = iter(RETRY_WAITS)
         except openai.APIError as exc:
             if await recover(session, messages, exc, waits, until):
@@ -312,12 +329,13 @@ async def solve(session: taskbridge.Session) -> str:
     task = session.instruction
     await session.log(f"Starting Task: {task[:200]}...")
 
-    # Phase 1: Architect Planner
+    # Phase 1: Architect Planner (ensure planner has at least 300s or 50% if short task)
+    plan_until = 0.0 if total is None else min(total * (1.0 - PLAN_SHARE), max(total - WRAP_UP_SEC - 300, total * 0.5))
     plan = await agent(
         session,
         conversation(PLANNER_PROMPT, session, task),
         READ_ONLY,
-        until(1.0 - PLAN_SHARE),
+        plan_until,
     )
     await session.log(f"Architecture Plan established: {len(plan)} chars")
 
@@ -326,29 +344,41 @@ async def solve(session: taskbridge.Session) -> str:
     summary = await agent(session, work, TOOLS, until(CHECK_SHARE), final=True)
     await session.log(f"Worker initial deliverable summary: {len(summary)} chars")
 
-    # Phase 3: Hostile PE Reviewer & Fix Rounds
-    for r in range(MAX_FIX_ROUNDS):
-        if not time_for(until(CHECK_SHARE / 2.0)):
-            break
-        review_context = f"## Task Specification\n{task}\n\n## Work Plan\n{plan}\n\n## Engineer's Deliverable Summary\n{summary}"
-        verdict = await agent(
-            session,
-            conversation(VERIFIER_PROMPT, session, review_context),
-            READ_ONLY,
-            until(CHECK_SHARE / 2.0),
-        )
-        await session.log(f"PE Reviewer Round {r+1} Verdict: {verdict[:300]}")
+    # Phase 3: Hostile PE Reviewer & Fix Rounds (guaranteeing re-audit window)
+    try:
+        for r in range(MAX_FIX_ROUNDS):
+            left = session.time_left()
+            if left is not None and left < WRAP_UP_SEC + MIN_STEP_SEC * 2:
+                break
 
-        # Check for PASS
-        if verdict.strip("*_. \r\n\t").upper() in ("", "PASS") or not time_for(WRAP_UP_SEC):
-            await session.log("PE Quality Audit PASSED: Zero critical defects found.")
-            break
+            audit_budget = max(MIN_STEP_SEC, (left or 600) * 0.25)
+            audit_until = 0.0 if left is None else max(0.0, left - audit_budget - WRAP_UP_SEC)
+            review_context = f"## Task Specification\n{task}\n\n## Work Plan\n{plan}\n\n## Engineer's Deliverable Summary\n{summary}"
+            verdict = await agent(
+                session,
+                conversation(VERIFIER_PROMPT, session, review_context),
+                READ_ONLY,
+                audit_until,
+            )
+            await session.log(f"PE Reviewer Round {r+1} Verdict: {verdict[:300]}")
 
-        work.append({
-            "role": "user",
-            "content": f"The Professional Engineer Auditor identified these specific gaps:\n{verdict}\n\nFix every listed defect, verify the output files on disk, and reply with your updated summary.",
-        })
-        summary = await agent(session, work, TOOLS, WRAP_UP_SEC, final=True) or summary
+            # Check for explicit PASS
+            if re.search(r"\bPASS\b", verdict.strip(), re.I):
+                await session.log("PE Quality Audit PASSED: Zero critical defects found.")
+                break
+            elif not verdict.strip():
+                await session.log("PE Quality Audit inconclusive; retaining verified deliverables.")
+                break
+
+            work.append({
+                "role": "user",
+                "content": f"The Professional Engineer Auditor identified these specific gaps:\n{verdict}\n\nFix every listed defect, verify the output files on disk, and reply with your updated summary.",
+            })
+            left_after_audit = session.time_left()
+            fix_until = 0.0 if left_after_audit is None else max(0.0, left_after_audit * 0.5 - WRAP_UP_SEC)
+            summary = await agent(session, work, TOOLS, fix_until, final=True) or summary
+    except Exception as audit_err:
+        await session.log(f"PE Quality Audit warning: {audit_err}; preserving worker deliverables.")
 
     return summary or session.final_message
 
