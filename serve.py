@@ -12,17 +12,20 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Antigravity PE Frontier: Autonomous Multi-Role Physical Engineering Agent Harness.
+"""Antigravity PE Frontier: Stage 2 Autonomous Multi-Role Physical Engineering Harness.
 
-Architecture:
+Engineered for the 56 hidden private test tasks and 29 public dev tasks:
 1. ARCHITECT_PLANNER: Ingests all project drawings, specifications, transmittals,
    and code excerpts. Resolves document conflicts (superseded vs governing) and
    issues an exact Engineering Work Plan with deliverable schemas and verification criteria.
 2. ENGINEERING_WORKER: Executes the plan using Python-driven numerical computation
    (strictly avoiding hand calculations). Writes deliverable artifacts (.xlsx, .dxf, .ifc, .zip, .md)
-   with rigorous unit tracking and code compliance (ASCE 7, AISC 360, ACI 318, NEC NFPA 70, ASHRAE).
+   with rigorous unit tracking, surgical edit_file capability, and code compliance
+   (ASCE 7, AISC 360, ACI 318, NEC NFPA 70, ASHRAE 90.1, NFPA 13).
 3. PE_VERIFIER: Independent licensed Professional Engineer persona that audits deliverable files,
    checks boundary limits, recomputes safety margins (Demand/Capacity <= 1.0), and enforces fix rounds.
+4. TASK-PROVIDED MCP INTEGRATION: Auto-discovers and connects to task-provided MCP servers
+   (spreadsheets, CAD viewers, calculation engines, transmittals) via mcp_find and mcp_call.
 """
 
 from __future__ import annotations
@@ -32,6 +35,7 @@ import json
 import os
 import re
 import sys
+from typing import Any
 
 import openai
 import taskbridge
@@ -81,7 +85,7 @@ Your role is to inspect the project package, resolve all document ambiguities, a
 2. Discover all relevant files (drawings, specifications, schedules, boring logs, CAD/IFC models, transmittals).
 3. Document Hierarchy: Check transmittal sheets, revision dates, and notes to distinguish GOVERNING documents from SUPERSEDED versions.
 4. Extract Requirements: Identify every single deliverable, its exact target path, required format, and boundary criteria.
-5. Formulate Methodology: Outline the governing physical equations, regulatory codes (AISC 360, ACI 318, ASCE 7, NEC NFPA 70, ASHRAE), required unit conversions, and verification tests.
+5. Formulate Methodology: Outline the governing physical equations, regulatory codes (AISC 360, ACI 318, ASCE 7, NEC NFPA 70, ASHRAE 90.1, NFPA 13), required unit conversions, and verification tests.
 6. Reply with your structured Engineering Work Plan covering:
    - Governing Documents Register (Governing vs Superseded)
    - Deliverables Matrix (Path, Format, Grader Requirements)
@@ -94,11 +98,12 @@ WORKER_PROMPT = """You are a Lead Physical Engineer executing an engineering tas
 You receive the task instructions and the Architect's Work Plan. Your goal is to produce stamped, production-grade engineering deliverables.
 
 ### Professional Standards:
-1. Code-First Computation: NEVER calculate complex engineering formulas or unit conversions by hand or mental math. Write Python scripts (numpy, scipy, pandas, openpyxl, ezdxf) to compute exact numerical values, equilibrium equations, and load combinations.
+1. Code-First Computation: NEVER calculate complex engineering formulas or unit conversions by hand or mental math. Write Python scripts (numpy, scipy, pandas, openpyxl, ezdxf, ifcopenshell) to compute exact numerical values, equilibrium equations, and load combinations.
 2. Unit Discipline: Explicitly track and verify units across all transitions (kN <-> lbf, ft <-> m, psi <-> kPa, gpm <-> L/s).
-3. Exact Deliverables: Place every deliverable file at the exact relative or absolute path specified in the task instruction. Ensure all required sheets, tables, layers, and metadata are populated.
-4. Self-Inspection: After writing each deliverable (.xlsx, .dxf, .ifc, .zip, .md), inspect it to ensure it is valid, non-empty, and free from formula errors (#DIV/0!, #REF!).
-5. Final Summary: When finished, reply without calling any tool: provide an executive-level deliverable summary detailing file paths, design basis, safety margins, and key engineering parameters.
+3. Surgical Edits: Use edit_file for targeted script adjustments, formula corrections, and configuration updates to preserve context and avoid full-file rewrites. Use write_file when creating new files.
+4. Exact Deliverables: Place every deliverable file at the exact relative or absolute path specified in the task instruction. Ensure all required sheets, tables, layers, and metadata are populated.
+5. Self-Inspection: After writing each deliverable (.xlsx, .dxf, .ifc, .zip, .md), inspect it to ensure it is valid, non-empty, and free from formula errors (#DIV/0!, #REF!).
+6. Final Summary: When finished, reply without calling any tool: provide an executive-level deliverable summary detailing file paths, design basis, safety margins, and key engineering parameters.
 """
 
 VERIFIER_PROMPT = """You are a licensed Professional Engineer (PE) and hostile Technical Auditor conducting a final quality audit on an engineering package in {workdir}.
@@ -130,12 +135,92 @@ def tool(name: str, description: str, **params: str) -> dict:
     }
 
 
-TOOLS = [
+BASE_TOOLS = [
     tool("bash", "Run a bash command (120 s limit) and return its exit code and output.", command="string"),
     tool("read_file", "Read a text file from the task container.", path="string"),
     tool("write_file", "Create or overwrite a file in the task container; parent folders are created.", path="string", content="string"),
+    tool("edit_file", "Replace target text in a file with replacement text (exact string match).", path="string", target="string", replacement="string"),
 ]
-READ_ONLY = TOOLS[:2]
+BASE_READ_ONLY = [
+    BASE_TOOLS[0],  # bash
+    BASE_TOOLS[1],  # read_file
+]
+
+
+class MCPServer(taskbridge.MCPClient):
+    """Client wrapper for a task-provided MCP server and its discovered tools."""
+
+    def __init__(self, session: taskbridge.Session, spec: dict[str, Any]):
+        super().__init__(session, spec["url"], client="antigravity-pe-frontier")
+        self.name = spec["name"]
+        self.tools: list[dict[str, Any]] = []
+
+    async def start(self) -> None:
+        await self.initialize()
+        self.tools = await self.list_tools()
+
+    async def call(self, name: str, arguments: dict[str, Any]) -> str:
+        result = await self.call_tool(name, arguments)
+        parts = []
+        content = result.get("content") if isinstance(result.get("content"), list) else []
+        for item in content:
+            kind = item.get("type") if isinstance(item, dict) else None
+            if kind == "text":
+                parts.append(str(item.get("text", "")))
+            elif kind in ("resource", "resource_link"):
+                parts.append(json.dumps(item)[:RESULT_CHARS])
+        if result.get("isError"):
+            return f"error: {result.get('error') or '\n'.join(parts) or 'MCP tool call failed'}"
+        return clip("\n".join(parts) or "ok (tool executed with no text output)")
+
+
+class MCPRegistry:
+    """Manages active task MCP servers and exposes search and execution."""
+
+    def __init__(self, session: taskbridge.Session):
+        self.session = session
+        self.servers: dict[str, MCPServer] = {}
+        self.tools: dict[str, tuple[MCPServer, dict[str, Any]]] = {}
+
+    async def connect_all(self) -> None:
+        for spec in getattr(self.session, "mcp_servers", []):
+            try:
+                server = MCPServer(self.session, spec)
+                await server.start()
+                self.servers[server.name] = server
+                for t in server.tools:
+                    qualified_name = f"{server.name}__{t['name']}"
+                    self.tools[qualified_name] = (server, t)
+                await self.session.log(f"Connected MCP server '{server.name}' with {len(server.tools)} tools")
+            except Exception as exc:
+                await self.session.log(f"Warning: could not connect to MCP server {spec.get('name')}: {exc}")
+
+    def find_tools(self, query: str) -> str:
+        if not self.tools:
+            return "No task MCP tools are available for this task."
+        words = [w for w in re.split(r"[^a-z0-9]+", query.lower()) if w]
+
+        def score(item):
+            name, (_, t) = item
+            text = f"{name} {t.get('description') or ''}".lower()
+            return (query.lower() == name.lower()) * 100 + sum(w in name.lower() for w in words) * 3 + sum(w in text for w in words)
+
+        best = [item for item in sorted(self.tools.items(), key=score, reverse=True)[:8] if score(item) > 0]
+        if not best:
+            return f"No MCP tools match {query!r}. Available tools: {', '.join(self.tools.keys())}"
+        found = [
+            f"Server: {server.name} | Tool: {t['name']} (Qualified: {name})\n"
+            f"Description: {(t.get('description') or 'No description')[:300]}\n"
+            f"Parameters: {json.dumps(t.get('inputSchema') or {})}"
+            for name, (server, t) in best
+        ]
+        return "\n\n".join(found)
+
+    async def execute_tool(self, server_name: str, tool_name: str, arguments: dict[str, Any]) -> str:
+        server = self.servers.get(server_name)
+        if not server:
+            return f"error: MCP server '{server_name}' not found. Available servers: {list(self.servers.keys())}"
+        return await server.call(tool_name, arguments)
 
 
 def clip(text: str) -> str:
@@ -166,7 +251,7 @@ def marked(messages: list[dict]) -> list[dict]:
     return out
 
 
-async def run_tool(session: taskbridge.Session, fn: dict) -> str:
+async def run_tool(session: taskbridge.Session, fn: dict, mcp_reg: MCPRegistry) -> str:
     name = fn["name"]
     try:
         args = json.loads(fn.get("arguments") or "{}")
@@ -187,6 +272,31 @@ async def run_tool(session: taskbridge.Session, fn: dict) -> str:
         if name == "write_file":
             count = await session.write_file(args["path"], args["content"])
             return f"wrote {count} bytes to {args['path']}"
+        if name == "edit_file":
+            path = args["path"]
+            target = args["target"]
+            replacement = args["replacement"]
+            raw = await session.read_file(path)
+            content = raw.decode("utf-8", "replace")
+            if target not in content:
+                return f"error: target string not found in {path}. Ensure exact character match including indentation."
+            count = content.count(target)
+            new_content = content.replace(target, replacement, 1)
+            byte_count = await session.write_file(path, new_content)
+            return f"successfully replaced target in {path} ({byte_count} bytes total, {count} occurrence(s) found)"
+        if name == "mcp_find":
+            query = args.get("query", "")
+            return mcp_reg.find_tools(query)
+        if name == "mcp_call":
+            s_name = args.get("server", "")
+            t_name = args.get("tool", "")
+            t_args = args.get("arguments", {})
+            if isinstance(t_args, str):
+                try:
+                    t_args = json.loads(t_args)
+                except Exception:
+                    pass
+            return await mcp_reg.execute_tool(s_name, t_name, t_args if isinstance(t_args, dict) else {})
         return f"error: unknown tool {name}"
     except Exception as exc:
         return f"error: {type(exc).__name__}: {exc}"
@@ -234,7 +344,7 @@ def conversation(system: str, session: taskbridge.Session, prompt: str) -> list[
     ]
 
 
-async def agent(session: taskbridge.Session, messages: list[dict], tools: list[dict], until: float, final: bool = False) -> str:
+async def agent(session: taskbridge.Session, messages: list[dict], tools: list[dict], until: float, mcp_reg: MCPRegistry, final: bool = False) -> str:
     global USE_CLAUDE_EXTRAS
     nudges, head, waits = 0, "", iter(RETRY_WAITS)
     while True:
@@ -259,7 +369,6 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
                     "thinking": {"type": "adaptive"},
                     "output_config": {"effort": "high"},
                 }
-            # After fallback: send NO effort parameter for Claude
         elif "gemini" in MODEL.lower() or "gemma" in MODEL.lower():
             kwargs["reasoning_effort"] = "high"
         elif EFFORT in ("low", "medium", "high"):
@@ -320,7 +429,7 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
             fname = call["function"]["name"]
             fargs = call["function"]["arguments"]
             await session.log(f"{fname} {fargs[:160]}")
-            content = await run_tool(session, call["function"])
+            content = await run_tool(session, call["function"], mcp_reg)
             messages.append({
                 "role": "tool",
                 "tool_call_id": call["id"],
@@ -332,47 +441,69 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
             messages[-1]["content"] += f"\n[{mins_left} minutes remaining for this step]"
 
 
+async def inspect_deliverables(session: taskbridge.Session) -> str:
+    """Pre-flight check: scan workspace for generated deliverables and verify non-zero bytes."""
+    try:
+        res = await session.exec(
+            "find . -maxdepth 4 -type f \\( -name '*.xlsx' -o -name '*.dxf' -o -name '*.ifc' "
+            "-o -name '*.docx' -o -name '*.pdf' -o -name '*.zip' -o -name '*.csv' \\) "
+            "-exec ls -lh {} + 2>/dev/null | head -n 30"
+        )
+        return res.get("output", "")
+    except Exception as exc:
+        return f"Inspection error: {exc}"
+
+
 async def solve(session: taskbridge.Session) -> str:
     total = session.time_left()
 
-    def until(share: float) -> float:
-        return 0.0 if total is None else total * share
+    # Step 0: Auto-discover and connect task MCP servers
+    mcp_reg = MCPRegistry(session)
+    await mcp_reg.connect_all()
 
-    def time_for(wrap_up: float) -> bool:
-        left = session.time_left()
-        return left is None or (left - wrap_up >= MIN_STEP_SEC)
+    active_tools = list(BASE_TOOLS)
+    active_read_only = list(BASE_READ_ONLY)
+    if mcp_reg.tools:
+        mcp_find_tool = tool("mcp_find", "Find available task-provided MCP tools matching keywords or name.", query="string")
+        mcp_call_tool = tool("mcp_call", "Call an MCP tool on a task server.", server="string", tool="string", arguments="string")
+        active_tools.extend([mcp_find_tool, mcp_call_tool])
+        active_read_only.extend([mcp_find_tool, mcp_call_tool])
 
     task = session.instruction
-    await session.log(f"Starting Task: {task[:200]}...")
+    await session.log(f"Starting Stage 2 Task Execution: {task[:200]}...")
 
-    # Phase 1: Architect Planner (ensure planner has at least 300s or 50% if short task)
+    # Phase 1: Architect Planner (Dynamic budget rollover)
     plan_until = 0.0 if total is None else min(total * (1.0 - PLAN_SHARE), max(total - WRAP_UP_SEC - 300, total * 0.5))
     try:
         plan = await agent(
             session,
             conversation(PLANNER_PROMPT, session, task),
-            READ_ONLY,
+            active_read_only,
             plan_until,
+            mcp_reg,
         )
-        await session.log(f"Architecture Plan established: {len(plan)} chars")
+        await session.log(f"Architecture Plan established ({len(plan)} chars). Rolling over unused budget to worker.")
     except Exception as exc:
         await session.log(f"Planner failed ({exc}); worker proceeds directly from task text")
         plan = "(No plan available. Derive all deliverables directly from the task instructions.)"
 
-    # Phase 2: Engineering Worker
+    # Phase 2: Engineering Worker (Takes remaining time down to CHECK_SHARE)
+    left_before_work = session.time_left()
+    worker_until = 0.0 if left_before_work is None else max(0.0, (total or left_before_work) * CHECK_SHARE)
     work = conversation(WORKER_PROMPT, session, f"{task}\n\n## Engineering Work Plan\n{plan}")
     try:
-        summary = await agent(session, work, TOOLS, until(CHECK_SHARE), final=True)
+        summary = await agent(session, work, active_tools, worker_until, mcp_reg, final=True)
     except Exception as work_err:
         await session.log(f"Worker phase exception ({work_err}); falling back to final message")
         summary = getattr(session, "final_message", "") or ""
     await session.log(f"Worker initial deliverable summary: {len(summary)} chars")
 
-    # Phase 3: Hostile PE Reviewer & Fix Rounds (guaranteeing re-audit window)
+    # Phase 3: Hostile PE Reviewer & Fix Rounds
     try:
         for r in range(MAX_FIX_ROUNDS):
             left = session.time_left()
             if left is not None and left < WRAP_UP_SEC + MIN_STEP_SEC * 2:
+                await session.log(f"Remaining time ({left:.0f}s) insufficient for another audit round; proceeding to finalization.")
                 break
 
             audit_budget = max(MIN_STEP_SEC, (left or 600) * 0.25)
@@ -381,12 +512,12 @@ async def solve(session: taskbridge.Session) -> str:
             verdict = await agent(
                 session,
                 conversation(VERIFIER_PROMPT, session, review_context),
-                READ_ONLY,
+                active_read_only,
                 audit_until,
+                mcp_reg,
             )
             await session.log(f"PE Reviewer Round {r+1} Verdict: {verdict[:300]}")
 
-            # Check for explicit PASS
             if PASS_ONLY.fullmatch(verdict.strip()):
                 await session.log("PE Quality Audit PASSED: Zero critical defects found.")
                 break
@@ -400,13 +531,16 @@ async def solve(session: taskbridge.Session) -> str:
             })
             left_after_audit = session.time_left()
             fix_until = 0.0 if left_after_audit is None else max(0.0, left_after_audit * 0.5 - WRAP_UP_SEC)
-            summary = await agent(session, work, TOOLS, fix_until, final=True) or summary
+            summary = await agent(session, work, active_tools, fix_until, mcp_reg, final=True) or summary
     except Exception as audit_err:
         await session.log(f"PE Quality Audit warning: {audit_err}; preserving worker deliverables.")
+
+    # Phase 4: Pre-Flight Deliverable Verification
+    files_summary = await inspect_deliverables(session)
+    await session.log(f"Pre-Flight Deliverables Found:\n{files_summary}")
 
     return summary or getattr(session, "final_message", "") or ""
 
 
 if __name__ == "__main__":
     taskbridge.run(solve)
-
