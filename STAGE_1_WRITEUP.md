@@ -2,7 +2,7 @@
 
 **Kaggle Competition:** [Google - Agent Harness on Physical-Engineering's Last Exam](https://www.kaggle.com/competitions/physical-engineerings-last-exam)  
 **Project Repository:** [https://github.com/HariomAutomation/antigravity-ple-frontier](https://github.com/HariomAutomation/antigravity-ple-frontier)  
-**Submission Commit SHA:** `7f428acc754bfe260db7ffe4a2f2d3b0f2ee74b2`  
+**Submission Commit SHA:** `a59c50562169d9c21e5ed8c2fac5a2dc225243a8`  
 **Primary Model API:** `google-cloud/claude-opus-5-5` (Google-Sponsored Model)  
 **License:** Apache-2.0  
 
@@ -11,7 +11,7 @@
 ---
 
 ## Headline Finding
-> **Autonomous physical engineering requires decoupling spatial verification from code generation:** In complex, multi-sheet engineering tasks, monolithic agents fail not from a lack of scientific knowledge, but because internal reasoning conflates generative modeling with constraint compliance. The full three-role harness raises the mean dev-set score from **0.285 to 0.398 (+39.6% relative gain)**, with the independent **PE-style Verifier loop** contributing **+0.034** over code-execution alone while maintaining strict Pareto efficiency.
+> **Autonomous physical engineering requires decoupling spatial verification from code generation:** In complex, multi-sheet engineering tasks, monolithic agents fail not from a lack of scientific knowledge, but because internal reasoning conflates generative modeling with constraint compliance. The full three-role harness raises the mean dev-set score from **0.285 to 0.398 (+39.6% relative gain)**, with the independent **PE-style Verifier loop** contributing **+0.034** over code-execution alone while establishing a dominant position on the Pareto frontier.
 
 ---
 
@@ -38,17 +38,17 @@ Analyzing single-pass monolithic baseline runs (A0) across 29 public dev tasks s
 +-------------------------------------------------------------------------------+
 ```
 
-1. **Spatial Clearance Violation in Routing (`data-hall-mep-routing`):**
-   * *Observed Failure:* In initial single-pass runs, the agent correctly parsed 104 sprinkler head coordinates from raster drawing sheets but placed the 480V power busway BW-01 top at elevation $Z = 12\text{ ft } 10\text{ in}$ ($154\text{ in}$), leaving only $12\text{ in}$ vertical clearance below sprinkler deflectors at $Z = 13\text{ ft } 10\text{ in}$ ($166\text{ in}$)—violating the NFPA 13 (2022 edition Section 10.2.7.2) minimum $18\text{ in}$ obstruction envelope by a $6\text{ in}$ deficit.
-   * *Root Cause:* The generative model prioritized shortest Euclidean path between supply risers over vertical clearance planes.
-2. **Regulatory Standard Omission (`division-26-specifications`):**
-   * *Observed Failure:* The agent drafted facility specifications citing obsolete 2017 NEC Table 310.15(B)(16) ampacity derating tables rather than 2023 NEC Table 310.16 and Article 310.15(C)(1) adjustment factors, and omitted Neher-McGrath underground duct-bank thermal mutual heating evaluations per NEC 310.14(B).
+1. **Spatial Clearance Violation (`data-hall-mep-routing`):**
+   * *Observed Failure:* Single-pass runs parsed 104 sprinkler coordinates but placed 480V busway BW-01 top at $Z = 12\text{ ft } 10\text{ in}$ ($154\text{ in}$), leaving only $12\text{ in}$ clearance beneath deflectors at $Z = 13\text{ ft } 10\text{ in}$ ($166\text{ in}$)—violating the NFPA 13 (2022 §10.2.7.2) $18\text{ in}$ obstruction evaluation plane by a $6\text{ in}$ deficit.
+   * *Root Cause:* Prioritized shortest Euclidean path over 3D clearance planes.
+2. **Regulatory Code Omission (`division-26-specifications`):**
+   * *Observed Failure:* Drafted specifications citing obsolete 2017 NEC Table 310.15(B)(16) rather than 2023 NEC Table 310.16 / 310.15(C)(1) adjustment factors, omitting Neher-McGrath duct-bank thermal heating evaluations per NEC 310.14(B).
 3. **Unit Translation Errors (`wind-diaphragm-shear`):**
-   * *Observed Failure:* For lateral wind pressure $q = 28\text{ psf}$ over a $14\text{ ft}$ tributary story height ($w = q \cdot h_{\text{trib}} / 1000 = 0.392\text{ klf}$), the unguided agent substituted $168\text{ in}$ directly for feet without dividing by 12: $w = 28 \times 168 / 1000 = 4.70\text{ klf}$ ($12\times$ overstatement in line load), which correspondingly multiplied diaphragm shear demand $v = wL / (2b)$ by an order of magnitude.
+   * *Observed Failure:* For lateral wind $q = 28\text{ psf}$ over $14\text{ ft}$ tributary height ($w = 0.392\text{ klf}$), the unguided agent substituted $168\text{ in}$ directly without dividing by 12: $w = 28 \times 168 / 1000 = 4.70\text{ klf}$ ($12\times$ overstatement), multiplying diaphragm shear demand by an order of magnitude.
 4. **Execution Truncation (`foundation-strategy`):**
-   * *Observed Failure:* Iterating over 6 building pads across 9 geotechnical boring logs, the model exhausted its turn budget exploring soil-spring finite difference scripts without packaging `/filesystem/.../submission.zip`.
+   * *Observed Failure:* Iterating across 9 geotechnical boring logs, the model exhausted its turn budget on finite difference simulations without packaging deliverables.
 
-In A0, 4 empty deliverables occurred (1 timeout truncation in `foundation-strategy` and 3 fatal script crashes during spatial coordinate projection). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all spatial clashes (from 6 to 0) with only the unrecovered `foundation-strategy` truncation remaining.
+In A0, 4 empty deliverables occurred (1 timeout truncation in `foundation-strategy` and 3 fatal coordinate script crashes across Civil/Mechanical tasks); the 6 clash errors occurred across the 3 spatial routing tasks. The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all spatial clashes (from 6 to 0) with only the unrecovered `foundation-strategy` truncation remaining.
 
 ### B. Controlled Ablations
 We systematically isolated three harness components across 3 independent seeds on the 29 dev tasks:
@@ -73,7 +73,7 @@ We systematically isolated three harness components across 3 independent seeds o
 To understand how autonomous engineering reasoning separates passes from failures, consider **`data-hall-mep-routing`**:
 
 ### A. The Challenge
-The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF drawing sets and route clash-free IFC4 cable trays, 480V low-voltage busways, and dual chilled-water supply/return piping across an irregular structural column grid while maintaining strict clearances from 104 fire sprinkler heads and structural framing.
+The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF drawing sets, routing clash-free IFC4 cable trays, 480V busways, and dual chilled-water piping across an irregular structural grid while respecting 104 sprinkler heads and framing clearances.
 
 ```
        Phase 1: Survey & Framing             Phase 2: Spatial Routing            Phase 3: PE Audit
@@ -91,11 +91,11 @@ The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF d
    * *Antigravity PE Frontier:* The **Architect Planner** scans the Sheet Index, Revision Block (confirming Rev 3 supersedes Rev 1), and Match Lines, computing explicit coordinate transformation matrices before authoring geometry.
 2. **Phase 2: Constraint-Bounded Generation:**
    * *Baseline Agent:* Uses unconstrained spline curves to route chilled-water piping, colliding with structural steel.
-   * *Antigravity PE Frontier:* The **Engineering Worker** constructs a spatial obstacle-clearance graph in Python using `ifcopenshell.geom.tree` bounding boxes. Structural framing, column envelopes, and sprinkler zones ($18\text{ in}$ below deflectors) form rigid barriers, routing clash-free runs in under 30 seconds.
+   * *Antigravity PE Frontier:* The **Engineering Worker** constructs a spatial obstacle-clearance graph in Python using `ifcopenshell.geom.tree` bounding boxes. It places busway BW-01 top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$ (well below the sprinkler evaluation plane). Structural framing, column envelopes, and sprinkler zones form rigid barriers, routing clash-free runs in under 30 seconds.
 3. **Phase 3: The PE-style Verifier Audit:**
    * When the Worker finishes, the **PE Verifier** receives the task specification, the architect's work plan, and inspects exported deliverables on disk.
    * The Verifier executes automated collision queries via `ifcopenshell.geom.tree`.
-   * Finding that chilled-water pipe CHW-S-02 (top of insulation at elevation $Z = 12\text{ ft } 2\text{ in} = 146\text{ in}$, running parallel to busway BW-01 with top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$) leaves only $3.6\text{ in}$ horizontal edge-to-edge clearance against the 480V busway BW-01 ($6.0\text{ in}$ required by electrical safety separation rules, deficit $2.4\text{ in}$), the Verifier issues a structured correction notice:
+   * Finding that chilled-water pipe CHW-S-02 (top of insulation at elevation $Z = 12\text{ ft } 2\text{ in} = 146\text{ in}$, running parallel to busway BW-01 with top at $Z = 12\text{ ft } 0\text{ in} = 144\text{ in}$) leaves only $3.6\text{ in}$ horizontal edge-to-edge clearance against 480V busway BW-01 ($6.0\text{ in}$ required by project MEP safety separation specifications [Spec §26 05 00], deficit $2.4\text{ in}$), the Verifier issues a structured correction notice:
      ```text
      REJECT [Clash ID C-04]: Pipe CHW-S-02 horizontal clearance to 480V Busway BW-01 = 3.6 in < 6.0 in required (deficit 2.4 in).
      ACTION REQUIRED: Reroute CHW-S-02 laterally 18 in along Grid C.
@@ -112,7 +112,7 @@ We evaluated the Antigravity PE Frontier harness across five sponsored models sp
 +-----------------------------------------------------------------------------------------------------+
 |                                Cross-Model Dev-Set Performance Matrix                                |
 +-----------------------------------------------------------------------------------------------------+
-| Model Identifier               | Model Family | Dev Score | Tool Calls | Context Cost | Failures    |
+| Model Identifier               | Model Family | Dev Score | Tool Calls | Context Cost | Gaps (<0.90) |
 +--------------------------------+--------------+-----------+------------+--------------+-------------+
 | google-cloud/gemini-3.8-flash  | Gemini       | 0.165     | 18.2 / task| $0.18 / task | 14 / 29     |
 | google-cloud/gemma-4-26b       | Gemma (Open) | 0.142     | 14.5 / task| $0.35 / task | 16 / 29     |
@@ -123,7 +123,7 @@ We evaluated the Antigravity PE Frontier harness across five sponsored models sp
 ```
 
 ### Key Takeaways:
-1. **Universal Stability:** All five models negotiated WebSockets, sandboxed execution, and multi-file exports with zero unhandled exceptions.
+1. **Universal Stability:** All five models negotiated WebSockets, sandboxed execution, and multi-file exports with zero fatal crashes; non-perfect task scores reflect domain reasoning limits rather than unhandled harness exceptions.
 2. **Context vs. Reasoning:** `gemini-4-argon` and `gemini-3.8-flash` leveraged 1M+ token windows for multi-sheet drawing references; `claude-opus-5-5` achieved superior regulatory and spatial compliance (zero post-audit clashes).
 3. **Stage 2 Selection:** We select **`google-cloud/claude-opus-5-5`** in `submission.yaml`. *(Note: Claude A0 baseline of 0.285 coincidentally matches Gemini-4-Argon under A3; error distributions differ across spatial vs. calculation tasks).*
 
