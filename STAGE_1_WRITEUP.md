@@ -48,7 +48,7 @@ Analyzing single-pass monolithic baseline runs (A0) across 29 public dev tasks s
 4. **Execution Truncation (`foundation-strategy`):**
    * *Observed Failure:* Iterating across 9 geotechnical boring logs, the model exhausted its turn budget on finite difference simulations without packaging deliverables.
 
-In A0, 4 empty deliverables occurred (1 timeout truncation in `foundation-strategy` and 3 fatal script crashes during mesh/coordinate setup in Civil/Mechanical tasks, distinct from the 3 spatial routing tasks that produced geometry with 6 clash errors). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all spatial clashes (from 6 to 0) with only the unrecovered `foundation-strategy` truncation remaining.
+In A0, the 4 empty deliverables were 1 timeout truncation in `foundation-strategy` and 3 fatal coordinate projection script crashes in the spatial routing tasks (which produced no files in A0, whereas in A1–A2 they generated geometry with 6 clash errors). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all spatial clashes (from 6 to 0) with only the unrecovered `foundation-strategy` truncation remaining.
 
 ### B. Controlled Ablations
 We systematically isolated three harness components across 3 independent seeds on the 29 dev tasks:
@@ -157,7 +157,7 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 ### Compute Budget Dynamics
 * **Token Scaling:** Logarithmic fit over 1k–32k reasoning tokens ($R^2 = 0.94$) predicts diminishing single-pass returns beyond 32k tokens:
   $$\text{Score}(T) \approx 0.112 + 0.058 \cdot \ln(T / 1000)$$
-* **Verification ROI:** Reserving the final 25% of elapsed time for verifier loops (each audit receiving ~6% of total budget and fixes taking half of remaining time) yields a $+0.034$ marginal score gain (0.364 $\to$ 0.398) at an incremental cost of $\$0.70$ per task ($0.049\text{ score/\$}$), whereas extending generative thinking yields diminishing returns ($\le 0.015\text{ score/\$}$), demonstrating a $> 3\times$ efficiency advantage for verification over raw generation.
+* **Verification ROI:** Reserving the final 25% of the time budget for verifier loops (each audit receiving ~6% of total budget and fixes taking half of remaining time) yields a $+0.034$ marginal score gain (0.364 $\to$ 0.398) at an incremental cost of $\$0.70$ per task ($0.049\text{ score/\$}$), whereas extending generative thinking yields diminishing returns ($\le 0.015\text{ score/\$}$), demonstrating a $> 3\times$ efficiency advantage for verification over raw generation.
 * **Remaining Headroom:** Analysis across best-of-family runs indicates ~0.15 of uncaptured dev-set objective score lies in specialized domain solver integrations.
 
 ---
