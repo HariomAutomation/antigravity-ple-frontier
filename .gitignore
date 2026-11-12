@@ -1,0 +1,19 @@
+# Python bytecode and build metadata
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Virtual environments
+.venv/
+venv/
+
+# Local credentials and env files
+.env
+*.env
+
+# Evaluation run outputs and logs
+runs/
+*.log
+
+# OS noise
+.DS_Store

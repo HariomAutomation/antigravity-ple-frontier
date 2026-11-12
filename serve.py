@@ -442,16 +442,37 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
 
 
 async def inspect_deliverables(session: taskbridge.Session) -> str:
-    """Pre-flight check: scan workspace for generated deliverables and verify non-zero bytes."""
+    """Pre-flight scan: list candidate deliverables and flag zero-byte files."""
+    command = (
+        "find . -maxdepth 6 -type f \\( -name '*.xlsx' -o -name '*.xlsm' "
+        "-o -name '*.dxf' -o -name '*.dwg' -o -name '*.ifc' -o -name '*.docx' "
+        "-o -name '*.pdf' -o -name '*.zip' -o -name '*.csv' -o -name '*.md' \\) "
+        "-printf '%s\\t%p\\n' 2>/dev/null | sort -nr | head -n 40"
+    )
     try:
-        res = await session.exec(
-            "find . -maxdepth 4 -type f \\( -name '*.xlsx' -o -name '*.dxf' -o -name '*.ifc' "
-            "-o -name '*.docx' -o -name '*.pdf' -o -name '*.zip' -o -name '*.csv' \\) "
-            "-exec ls -lh {} + 2>/dev/null | head -n 30"
-        )
-        return res.get("output", "")
+        res = await session.exec(command)
     except Exception as exc:
         return f"Inspection error: {exc}"
+    output = (res.get("output") or "").strip()
+    if not output:
+        return "No candidate deliverable files found under the task workdir."
+    rows: list[tuple[int, str]] = []
+    for line in output.splitlines():
+        size_text, separator, path = line.partition("\t")
+        if not separator:
+            continue
+        try:
+            rows.append((int(size_text), path))
+        except ValueError:
+            continue
+    if not rows:
+        return "No candidate deliverable files found under the task workdir."
+    total = sum(size for size, _ in rows)
+    zero = [path for size, path in rows if size == 0]
+    summary = f"{len(rows)} candidate deliverable(s), {total / (1024 * 1024):.2f} MiB total."
+    if zero:
+        summary += " Zero-byte: " + ", ".join(zero[:8])
+    return summary + "\n" + output
 
 
 async def solve(session: taskbridge.Session) -> str:
@@ -467,12 +488,13 @@ async def solve(session: taskbridge.Session) -> str:
         mcp_find_tool = tool("mcp_find", "Find available task-provided MCP tools matching keywords or name.", query="string")
         mcp_call_tool = tool("mcp_call", "Call an MCP tool on a task server.", server="string", tool="string", arguments="string")
         active_tools.extend([mcp_find_tool, mcp_call_tool])
-        active_read_only.extend([mcp_find_tool, mcp_call_tool])
+        # Planner and verifier may discover MCP tools but must not mutate task state.
+        active_read_only.append(mcp_find_tool)
 
     task = session.instruction
     await session.log(f"Starting Stage 2 Task Execution: {task[:200]}...")
 
-    # Phase 1: Architect Planner (Dynamic budget rollover)
+    # Phase 1: Architect Planner (capped planning share; unused time stays with the worker)
     plan_until = 0.0 if total is None else min(total * (1.0 - PLAN_SHARE), max(total - WRAP_UP_SEC - 300, total * 0.5))
     try:
         plan = await agent(
@@ -482,14 +504,13 @@ async def solve(session: taskbridge.Session) -> str:
             plan_until,
             mcp_reg,
         )
-        await session.log(f"Architecture Plan established ({len(plan)} chars). Rolling over unused budget to worker.")
+        await session.log(f"Architecture Plan established ({len(plan)} chars). Unused planning time remains available to the worker.")
     except Exception as exc:
         await session.log(f"Planner failed ({exc}); worker proceeds directly from task text")
         plan = "(No plan available. Derive all deliverables directly from the task instructions.)"
 
-    # Phase 2: Engineering Worker (Takes remaining time down to CHECK_SHARE)
-    left_before_work = session.time_left()
-    worker_until = 0.0 if left_before_work is None else max(0.0, (total or left_before_work) * CHECK_SHARE)
+    # Phase 2: Engineering Worker (runs until the fixed verifier reserve remains)
+    worker_until = 0.0 if total is None else max(0.0, total * CHECK_SHARE)
     work = conversation(WORKER_PROMPT, session, f"{task}\n\n## Engineering Work Plan\n{plan}")
     try:
         summary = await agent(session, work, active_tools, worker_until, mcp_reg, final=True)
