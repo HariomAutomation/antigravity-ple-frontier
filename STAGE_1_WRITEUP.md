@@ -17,10 +17,10 @@
 
 ## 1. Insight & Failure Analysis (25 Points)
 
-Physical-Engineering’s Last Exam (PLE) tests LLM agents on real-world infrastructure engineering requiring spatial 2D/3D consistency, multi-code regulatory reconciliation, and strict dimensional tolerances.
+Physical-Engineering’s Last Exam (PLE) evaluates LLM agents on infrastructure engineering demanding spatial 2D/3D consistency, regulatory code reconciliation, and strict dimensional tolerances.
 
 ### A. Failure Taxonomy Across 29 Dev Tasks
-Analyzing single-pass monolithic baseline runs (A0) across 29 public dev tasks spanning Structural, Civil, Electrical, and Mechanical engineering reveals four distinct failure modes (10 failing tasks, 19 passing—defined as producing complete deliverable files with zero unhandled exceptions and non-zero rubric scores):
+Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors):
 
 ![Figure 3: Dev-Set Failure Distribution](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig3_failure_breakdown.png)
 
@@ -34,7 +34,7 @@ Analyzing single-pass monolithic baseline runs (A0) across 29 public dev tasks s
 | 2. Regulatory Code Omission  | 4 tasks   | Ambiguous jurisdiction / derating  |
 | 3. Unit Translation Drift    | 2 tasks   | Mixed Imperial (kips, ft) & SI (kN)|
 | 4. Budget / Truncation Stop  | 1 task    | Unbounded simulation turn loops    |
-| 5. Passing Tasks (Baseline)  | 19 tasks  | Verified compliant deliverables    |
+| 5. Passing Tasks (Baseline)  | 19 tasks  | No gating errors                   |
 +-------------------------------------------------------------------------------+
 ```
 
@@ -48,7 +48,7 @@ Analyzing single-pass monolithic baseline runs (A0) across 29 public dev tasks s
 4. **Execution Truncation (`foundation-strategy`):**
    * *Observed Failure:* Iterating across 9 geotechnical boring logs, the model exhausted its turn budget on finite difference simulations without packaging deliverables.
 
-In A0, the 4 empty deliverables were 1 timeout truncation in `foundation-strategy` and 3 fatal coordinate projection script crashes in the spatial routing tasks (which produced no files in A0, whereas in A1–A2 they generated geometry with 6 clash errors). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all spatial clashes (from 6 to 0) with only the unrecovered `foundation-strategy` truncation remaining.
+In A0, all three spatial tasks exported geometry with 6 hard clashes (including BW-01 at 154 in in `data-hall-mep-routing`, scoring 0.000). The 4 empty deliverables were the `foundation-strategy` truncation plus 3 script crashes in Civil/Mechanical (e.g. `les-mesh-resolution`, `solar-witness-test-package`). The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (28 of 29 tasks usable and passing), eliminating all clashes (6 to 0) with only the `foundation-strategy` truncation remaining.
 
 ### B. Controlled Ablations
 We systematically isolated three harness components across 3 independent seeds on the 29 dev tasks:
@@ -63,7 +63,7 @@ We systematically isolated three harness components across 3 independent seeds o
 *Paired bootstrap analysis between A3 and A2 confirms the independent PE-style Verifier provides a statistically significant gain (+0.034 score delta, 95% bootstrap CI: [+0.018, +0.051], p < 0.01).*
 
 ### C. Failed Hypotheses
-* **Hypothesis 1: In-context few-shot CAD schemas.** Embedding raw IFC4 STEP definitions consumed 48k prompt tokens without improving geometry validation; models hallucinated entity IDs. Replaced by lightweight local `ifcopenshell` Python scripts.
+* **Hypothesis 1: In-context few-shot CAD schemas.** Embedding raw IFC4 STEP definitions consumed 48k prompt tokens without improving geometry validation; models hallucinated entity IDs. Instead, the Worker authors `ifcopenshell` Python scripts dynamically at runtime.
 * **Hypothesis 2: Multi-agent peer debate.** Parallel models debating engineering choices deadlocked without completing deliverables. Replaced by an authoritative sequential hierarchy: Planner $\rightarrow$ Worker $\rightarrow$ Auditor.
 
 ---
@@ -190,13 +190,13 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
                                          v
                   +----------------------------------------------+
                   |          Isolated Task Container             |
-                  |  (/filesystem, CAD/IFC, Boring Logs, MCP)    |
+                  |     (/filesystem, CAD/IFC, Boring Logs)      |
                   +----------------------------------------------+
 ```
 
 ### Verification Checklist
 * [x] **Root Files:** `submission.yaml`, `serve.py`, `harness.py`, `taskbridge.py`, `requirements.txt`, `README.md`, `LICENSE`, `figures/`, and `artifacts/` committed at root.
 * [x] **Dev Artifacts Validated:** 28 of 29 dev tasks usable ($25.37\text{ MiB}$, 100 files, no symlinks/LFS).
-* [x] **Official Kit Verification:** Passes kit artifacts (28 of 29 dev tasks usable) and offline benchmark suite (31/31 passed).
+* [x] **Official Kit Verification:** Passes kit artifacts (28 of 29 dev tasks usable) and offline test suite (29 task integrity + 2 constraint tests passed).
 * [x] **Sponsored Model:** `google-cloud/claude-opus-5-5`.
 * [x] **Word Count:** Under 2,000-word ceiling.
