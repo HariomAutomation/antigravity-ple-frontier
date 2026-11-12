@@ -361,7 +361,11 @@ async def solve(session: taskbridge.Session) -> str:
 
     # Phase 2: Engineering Worker
     work = conversation(WORKER_PROMPT, session, f"{task}\n\n## Engineering Work Plan\n{plan}")
-    summary = await agent(session, work, TOOLS, until(CHECK_SHARE), final=True)
+    try:
+        summary = await agent(session, work, TOOLS, until(CHECK_SHARE), final=True)
+    except Exception as work_err:
+        await session.log(f"Worker phase exception ({work_err}); falling back to final message")
+        summary = session.final_message or ""
     await session.log(f"Worker initial deliverable summary: {len(summary)} chars")
 
     # Phase 3: Hostile PE Reviewer & Fix Rounds (guaranteeing re-audit window)
