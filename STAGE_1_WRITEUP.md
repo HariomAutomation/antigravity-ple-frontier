@@ -6,7 +6,7 @@
 **Primary Model API:** `google-cloud/claude-opus-5-5` (Google-Sponsored Model)  
 **License:** Apache-2.0  
 
-![Antigravity PE Frontier Cover](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/cover_image_ple_frontier.png)
+![Antigravity PE Frontier Cover](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/cover_image_ple_frontier.png)
 
 ---
 
@@ -20,9 +20,9 @@
 Physical-Engineering’s Last Exam (PLE) evaluates LLM agents on infrastructure engineering demanding spatial 2D/3D consistency, regulatory code reconciliation, and strict dimensional tolerances.
 
 ### A. Failure Taxonomy Across 29 Dev Tasks
-Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors). Passing tasks are defined as producing complete deliverable files with zero unhandled exceptions and non-zero rubric scores:
+Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors). Passing tasks are defined as producing complete deliverable files with zero unhandled exceptions, non-zero rubric scores, and no rubric-gating errors:
 
-![Figure 3: Dev-Set Failure Distribution](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig3_failure_breakdown.png)
+![Figure 3: Dev-Set Failure Distribution](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/fig3_failure_breakdown.png)
 
 ```
 +-------------------------------------------------------------------------------+
@@ -48,7 +48,7 @@ Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civ
 4. **Execution Truncation (`foundation-strategy`):**
    * *Observed Failure:* Iterating across 9 geotechnical boring logs, the model exhausted its turn budget on finite difference simulations without packaging deliverables.
 
-In A0, the 4 zero-score deliverables across the 29 tasks were the `foundation-strategy` [Geotechnical, Category 4] turn-budget truncation, two spatial tasks scoring 0.000 from clearance clashes (`data-hall-mep-routing` and `data-hall-mep-routing-offset`, Category 1), and an unhandled script crash on `solar-witness-test-package` [Electrical, Category 2]. The remaining 6 failing baseline tasks produced complete files but suffered severe rubric penalties from obsolete code citations and unit scaling. The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all clashes (6 to 0) with only the `foundation-strategy` truncation remaining (1 / 29 empty, consistent with Table 3).
+In A0, the 4 zero-score deliverables across the 29 tasks were the `foundation-strategy` [Geotechnical, Category 4] turn-budget truncation, two spatial tasks scoring 0.000 from clearance clashes (`data-hall-mep-routing` and `data-hall-mep-routing-offset`, Category 1), and an unhandled script crash on `solar-witness-test-package` [Electrical, Category 2]. The remaining 6 failing baseline tasks produced complete files but suffered severe rubric penalties from obsolete code citations, unit scaling, and one non-zero clearance clash. The Antigravity PE Frontier (A3) resolved 9 of these 10 baseline failures (leaving 28 of 29 tasks usable and passing), eliminating all clashes (6 to 0) with only the `foundation-strategy` truncation remaining (1 / 29 empty, consistent with Table 3).
 
 ### B. Controlled Ablations
 We systematically isolated three harness components across 3 independent seeds on the 29 dev tasks:
@@ -80,7 +80,7 @@ The agent must reconstruct a two-phase data center hall from 7 multi-sheet PDF d
     +------------------------------+     +------------------------------+     +---------------------+
     | • PDF Sheet Extraction (OCR) | --> | • 3D Bounding-Box Obstacles  | --> | • Spatial Collision |
     | • Grid & Datum Reconciliation|     | • Code Clearances (NFPA/NEC) |     | • Code Compliance   |
-    | • Column & Wall Registration |     | • IFC4 Geometry Construction |     | • Final IFC4 Export |
+    | • Column & Wall Registration |     | • IFC4 Geometry Construction |     | • Audit Sign-Off    |
     +------------------------------+     +------------------------------+     +---------------------+
 ```
 
@@ -133,7 +133,7 @@ We evaluated the Antigravity PE Frontier harness across five sponsored models sp
 
 Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.138$ while optimizing placement on the **performance-cost Pareto frontier**.
 
-![Figure 2: Performance-Cost Pareto Frontier](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig2_score_cost_pareto.png)
+![Figure 2: Performance-Cost Pareto Frontier](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/fig2_score_cost_pareto.png)
 
 ### Compute Budget Dynamics
 * **Token Scaling:** Sweeping reasoning effort under the single-pass baseline configuration (A0) across 1k–32k tokens yields a logarithmic fit ($R^2 = 0.94$):
@@ -147,7 +147,7 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 ## 5. Visuals & Harness Architecture (15 Points)
 
 ### Figure 1: Harness Multi-Role Architecture
-![Figure 1: Harness Multi-Role Architecture](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/main/figures/fig1_harness_architecture.png)
+![Figure 1: Harness Multi-Role Architecture](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/fig1_harness_architecture.png)
 
 *Architectural Flow: Evaluator WebSocket Server $\to$ Architect Planner (Ingestion & Code Recon) $\to$ Engineering Worker (Constraint-Bounded Generation) $\leftrightarrow$ PE-style Verifier (Independent Collision & Code Audit, $\le 2$ loops) $\to$ Isolated Task Container.*
 
