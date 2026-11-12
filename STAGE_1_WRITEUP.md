@@ -20,7 +20,7 @@
 Physical-Engineering’s Last Exam (PLE) evaluates LLM agents on infrastructure engineering demanding spatial 2D/3D consistency, regulatory code reconciliation, and strict dimensional tolerances.
 
 ### A. Failure Taxonomy Across 29 Dev Tasks
-Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors). Passing tasks are defined as producing complete deliverable files with zero unhandled exceptions, non-zero rubric scores, and no rubric-gating errors:
+Evaluating single-pass baseline runs (A0) across 29 dev tasks in Structural, Civil/Geotechnical, Electrical, and Mechanical engineering identifies four failure modes (10 failing tasks tripping rubric-gating errors; 19 passing with zero gating errors). Passing tasks are defined as producing complete deliverable files with zero unhandled exceptions, non-zero rubric scores, and no rubric-gating errors:
 
 ![Figure 3: Dev-Set Failure Distribution](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/fig3_failure_breakdown.png)
 
@@ -138,7 +138,7 @@ Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.
 ### Compute Budget Dynamics
 * **Token Scaling:** Sweeping reasoning effort under the single-pass baseline configuration (A0) across 1k–32k tokens yields a logarithmic fit ($R^2 = 0.94$):
   $$\text{Score}(T) \approx 0.112 + 0.058 \cdot \ln(T / 1000)$$
-  where marginal gain falls to $\sim 0.002$ per 1k tokens at 32k; observed spatial clash failures persisted within unguided token budgets without independent geometric verification.
+  where marginal gain falls to $\sim 0.002$ per 1k tokens at 32k (A0 operates at $\approx 20\text{k}$ reasoning tokens); observed spatial clash failures persisted within unguided token budgets without independent geometric verification.
 * **Verification ROI:** Reserving the final 25% of the time budget for verifier loops (each audit receiving ~6% of total budget and fixes taking half of remaining time) yields a $+0.034$ marginal score gain (0.364 $\to$ 0.398) at an incremental cost of $\$0.70$ per task ($0.049\text{ score/\$}$), whereas extending generative thinking yields diminishing returns ($\le 0.015\text{ score/\$}$), demonstrating a $> 3\times$ efficiency advantage for verification over raw generation.
 * **Remaining Headroom:** Analysis across best-of-family runs indicates ~0.15 of uncaptured dev-set objective score lies in specialized domain solver integrations.
 
