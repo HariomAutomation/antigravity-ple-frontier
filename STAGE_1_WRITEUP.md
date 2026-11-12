@@ -133,7 +133,7 @@ We evaluated the Antigravity PE Frontier harness across five sponsored models sp
 
 Stage 2 competition rules require finalists to achieve a mean test score $\ge 0.138$ while optimizing placement on the **performance-cost Pareto frontier**.
 
-![Figure 2: Performance-Cost Pareto Frontier](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/1c798f489a7c6fb998ad5ff81d23791b64f3c678/figures/fig2_score_cost_pareto.png)
+![Figure 2: Performance-Cost Pareto Frontier](https://raw.githubusercontent.com/HariomAutomation/antigravity-ple-frontier/97758adaa00c220f5b2489a76b28a3bdac59156e/figures/fig2_score_cost_pareto.png)
 
 ### Compute Budget Dynamics
 * **Token Scaling:** Sweeping reasoning effort under the single-pass baseline configuration (A0) across 1k–32k tokens yields a logarithmic fit ($R^2 = 0.94$):
