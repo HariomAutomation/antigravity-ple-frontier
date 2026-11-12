@@ -38,9 +38,14 @@ import taskbridge
 
 MODEL = os.environ.get("MODEL_NAME", "claude-opus-5-5")
 MAX_EFFORT_MODELS = ("glm", "gpt-6", "deepseek-v4")
-EFFORT = os.environ.get("REASONING_EFFORT") or (
-    "high" if any(m in MODEL.lower() for m in MAX_EFFORT_MODELS) else "medium"
-)
+env_effort = (os.environ.get("REASONING_EFFORT") or "").strip().lower()
+if env_effort in ("low", "medium", "high"):
+    EFFORT = env_effort
+else:
+    EFFORT = "high" if any(m in MODEL.lower() for m in MAX_EFFORT_MODELS) else "medium"
+
+USE_CLAUDE_EXTRAS = "claude" in MODEL.lower()
+PASS_ONLY = re.compile(r"^[\s*_`#>]*PASS[\s*_`.!]*$", re.I)
 
 WRAP_UP_SEC = 240
 WRAP_UP = {
@@ -247,14 +252,14 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
         elif tools:
             kwargs["tools"] = tools
 
-        if "claude" in MODEL.lower():
+        if USE_CLAUDE_EXTRAS and "claude" in MODEL.lower():
             kwargs["extra_body"] = {
                 "thinking": {"type": "adaptive"},
                 "output_config": {"effort": "high"},
             }
         elif "gemini" in MODEL.lower() or "gemma" in MODEL.lower():
             kwargs["reasoning_effort"] = "high"
-        else:
+        elif EFFORT in ("low", "medium", "high"):
             kwargs["reasoning_effort"] = EFFORT
 
         try:
@@ -262,6 +267,15 @@ async def agent(session: taskbridge.Session, messages: list[dict], tools: list[d
             per_call = 1800.0 if left is None else max(60.0, min(1800.0, left - 30.0))
             res = await client.chat.completions.create(**kwargs, timeout=per_call)
             waits = iter(RETRY_WAITS)
+        except openai.BadRequestError as exc:
+            global USE_CLAUDE_EXTRAS
+            if USE_CLAUDE_EXTRAS and re.search(r"thinking|output_config|effort|signature|extra_body", str(exc), re.I):
+                USE_CLAUDE_EXTRAS = False
+                await session.log(f"Gateway rejected thinking parameters ({exc}); retrying call without extra_body")
+                continue
+            if await recover(session, messages, exc, waits, until):
+                continue
+            raise
         except openai.APIError as exc:
             if await recover(session, messages, exc, waits, until):
                 continue
@@ -331,13 +345,17 @@ async def solve(session: taskbridge.Session) -> str:
 
     # Phase 1: Architect Planner (ensure planner has at least 300s or 50% if short task)
     plan_until = 0.0 if total is None else min(total * (1.0 - PLAN_SHARE), max(total - WRAP_UP_SEC - 300, total * 0.5))
-    plan = await agent(
-        session,
-        conversation(PLANNER_PROMPT, session, task),
-        READ_ONLY,
-        plan_until,
-    )
-    await session.log(f"Architecture Plan established: {len(plan)} chars")
+    try:
+        plan = await agent(
+            session,
+            conversation(PLANNER_PROMPT, session, task),
+            READ_ONLY,
+            plan_until,
+        )
+        await session.log(f"Architecture Plan established: {len(plan)} chars")
+    except Exception as exc:
+        await session.log(f"Planner failed ({exc}); worker proceeds directly from task text")
+        plan = "(No plan available. Derive all deliverables directly from the task instructions.)"
 
     # Phase 2: Engineering Worker
     work = conversation(WORKER_PROMPT, session, f"{task}\n\n## Engineering Work Plan\n{plan}")
@@ -363,7 +381,7 @@ async def solve(session: taskbridge.Session) -> str:
             await session.log(f"PE Reviewer Round {r+1} Verdict: {verdict[:300]}")
 
             # Check for explicit PASS
-            if re.search(r"\bPASS\b", verdict.strip(), re.I):
+            if PASS_ONLY.fullmatch(verdict.strip()):
                 await session.log("PE Quality Audit PASSED: Zero critical defects found.")
                 break
             elif not verdict.strip():

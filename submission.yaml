@@ -6,5 +6,5 @@ install: >-
   && uv pip install --python /opt/harness/venv/bin/python -r {src}/requirements.txt
 serve: /opt/harness/venv/bin/python {src}/serve.py
 env:
-  REASONING_EFFORT: "max"
+  REASONING_EFFORT: "high"
 
